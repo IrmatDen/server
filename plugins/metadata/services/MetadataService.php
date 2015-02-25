@@ -127,11 +127,15 @@ class MetadataService extends KalturaBaseService
 		$dbMetadata->setObjectId($objectId);
 		$dbMetadata->setStatus(KalturaMetadataStatus::VALID);
 
-		// validate object exists
-		$object = kMetadataManager::getObjectFromPeer($dbMetadata);
-		if(!$object)
-			throw new KalturaAPIException(MetadataErrors::INVALID_METADATA_OBJECT, $objectId);
-		
+		// dynamic objects are metadata only, skip validating object id
+		if ($objectType != KalturaMetadataObjectType::DYNAMIC_OBJECT)
+		{
+			// validate object exists
+			$object = kMetadataManager::getObjectFromPeer($dbMetadata);
+			if (!$object)
+				throw new KalturaAPIException(MetadataErrors::INVALID_METADATA_OBJECT, $objectId);
+		}
+
 		$dbMetadata->save();
 		
 		$this->deleteOldVersions($dbMetadata);
@@ -346,6 +350,7 @@ class MetadataService extends KalturaBaseService
 		$applyPartnerFilter = true;
 		if ($filter->metadataObjectTypeEqual == MetadataObjectType::ENTRY)
 		{
+			$entryIds = null;
 			if ($filter->objectIdEqual)
 			{
 				$entryIds = array($filter->objectIdEqual);
@@ -381,6 +386,7 @@ class MetadataService extends KalturaBaseService
 	
 		if ($filter->metadataObjectTypeEqual == MetadataObjectType::CATEGORY)
 		{
+			$categoryIds = null;
 			if ($filter->objectIdEqual)
 			{
 				$categoryIds = array($filter->objectIdEqual);
@@ -413,11 +419,10 @@ class MetadataService extends KalturaBaseService
 		
 		$metadataFilter = new MetadataFilter();
 		$filter->toObject($metadataFilter);
-		
-		$c = new Criteria();
+
+		$c = KalturaCriteria::create(MetadataPeer::OM_CLASS);
 		$metadataFilter->attachToCriteria($c);
-		$count = MetadataPeer::doCount($c);
-		
+
 		if (! $pager)
 			$pager = new KalturaFilterPager ();
 		$pager->attachToCriteria($c);
@@ -425,7 +430,7 @@ class MetadataService extends KalturaBaseService
 		
 		$response = new KalturaMetadataListResponse();
 		$response->objects = KalturaMetadataArray::fromDbArray($list);
-		$response->totalCount = $count;
+		$response->totalCount = $c->getRecordsCount();
 		
 		return $response;
 	}
